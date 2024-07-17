@@ -1,0 +1,453 @@
+import tkinter as tk
+from tkinter import messagebox, ttk
+import math
+from PIL import Image, ImageTk
+import pygame
+
+pygame.mixer.init()
+background_music = pygame.mixer.music.load(r"C:\WISE\game music.mp3") 
+
+def play_background_music():
+    pygame.mixer.music.play(-1)
+
+def stop_background_music():
+    pygame.mixer.music.stop()
+
+play_background_music()
+
+click_sound = pygame.mixer.Sound(r"C:\WISE\click-button-140881.mp3") 
+knock_sound = pygame.mixer.Sound(r"C:\WISE\marble-83124.mp3") 
+
+def play_click_sound():
+    click_sound.play()
+
+def play_knock_sound():
+    knock_sound.play()
+
+def toggle_background_music():
+    global background_music_playing
+    if background_music_playing:
+        stop_background_music()
+        background_music_playing = False
+    else:
+        play_background_music()
+        background_music_playing = True
+
+background_music_playing = True
+positions = []  
+skip_length = []
+no_of_positions = 0
+no_of_marbles = 0  
+knocked_marbles = []
+round_number=0
+
+def show_instructions(source_frame=None, source_window=None):
+    if source_window is not None:
+        if source_window.winfo_exists():
+            source_window.destroy()  
+            
+        else:
+            return  # Don't transition if source window does not exist
+    if source_frame is not None:
+        source_frame.pack_forget()  # Forget the source frame
+    if simulation_frame.winfo_exists():  # Check if the simulation frame exists
+        simulation_frame.pack_forget()  # Hide the simulation frame
+    welcome_frame.pack_forget()
+    instructions_frame = tk.Frame(root, bg="#DEF4CC")
+
+    # Add your instructions text or any other content here
+    instructions_heading = tk.Label(instructions_frame, text="Instructions", font=("lucida handwriting", 25, "bold"), justify="center", bg="#DEF4CC")
+    instructions_heading.pack(pady=10)
+
+    instructions_text = tk.Label(instructions_frame, text="1. You have to enter your requirements.\n\n ~ Number of marbles. \n\n ~ Number of positions in the marble board.\n\n ~ Give position and skip length of each marble.\n\n\n 2. Click 'Move Marbles' to start the simulation.\n\n\n3. The marble moves according to its skip length and knocks out all the marbles in its way.\n\n\n4. The skip length of the marbles is decreased by the number of marbles it knocked out during its turn.\n\n\n5. Finally you will get How many marbles are remaining and which marble is remaining.", font=("Arial", 16), justify="left", bg="#DEF4CC")
+    instructions_text.pack(pady=10)
+    
+    instructions_image = tk.PhotoImage(file="C:\\WISE\\Learn How to Play Marbles in 6 Simple Steps.png")  # Replace with your image file path
+    image_label = tk.Label(instructions_frame, image=instructions_image, bg="#DEF4CC")
+    image_label.image = instructions_image 
+    image_label.pack(pady=10)
+
+   
+    next_button = tk.Button(instructions_frame, text="Next", font=("Eras Demi ITC", 30),bg="#DEF4CC", fg="black", bd=3, command=lambda: transition_to_input(instructions_frame))
+    next_button.place(relx=0.9, rely=0.75, anchor=tk.CENTER, width=300, height=80)
+    play_click_sound()
+
+    instructions_frame.pack(fill="both", expand=True)
+
+def transition_to_input(source_frame=None, source_window=None):
+    if source_window is not None:
+        if source_window.winfo_exists(): 
+            source_window.destroy()  
+        else:
+            return  
+    if source_frame is not None:
+        source_frame.pack_forget()  
+    if simulation_frame.winfo_exists(): 
+        simulation_frame.pack_forget()  
+    welcome_frame.pack_forget()
+    input_frame.pack(fill="both", expand=True)
+
+def transition_to_simulation():
+    input_frame.pack_forget()
+    simulation_frame.pack(fill="both", expand=True)
+    update_board(initial=True)  
+
+    
+    back_button = tk.Button(simulation_frame, text="Back", font=("Tekton", 20), width=15, command=back_move)
+    back_button.place(relx=0.96, rely=0.8, anchor=tk.E)
+
+    
+    menu_button = tk.Button(simulation_frame, text="\u2630", font=("Arial", 20), bg=background_color, command=show_menu)
+    menu_button.place(relx=0.97, rely=0.03, anchor=tk.CENTER, width=40, height=40)
+
+   
+    sound_toggle_button = tk.Button(simulation_frame, text="\U0001F50A", font=("Arial", 14), bg=background_color, command=toggle_background_music)
+    sound_toggle_button.place(relx=0.97, rely=0.1, anchor=tk.CENTER)
+    
+    
+
+
+
+def start_simulation(review_window=None):
+    play_click_sound()
+    global  positions, skip_length, no_of_positions, no_of_marbles, prev_len, knocked_marbles 
+    try:
+        no_of_positions = int(num_marbles_entry.get())
+        no_of_marbles = int(num_positions_entry.get())
+        positions = [int(pos) for pos in marble_positions_entry.get().split()]
+        skip_length = [int(skip_length) for skip_length in skip_length_entry.get().split()]
+        
+        if len(positions) != no_of_positions or len(skip_length) != no_of_positions:
+            raise ValueError("Number of positions and skip lengths must match number of marbles.")
+        
+        prev_len = len([pos for pos in positions if pos != 0])
+        knocked_marbles = []
+        
+        if output_label:
+            output_label.config(text="")
+        transition_to_simulation()
+
+        for i in range(no_of_positions):
+            tree.insert("", "end", values=(i+1, positions[i], skip_length[i]))
+        
+        update_table()  
+
+    
+        if prev_len == 0:
+            end_game()
+        
+    except ValueError as e:
+        messagebox.showerror("Input Error", str(e))
+
+pygame.init()
+
+def move_marbles():
+    global positions, skip_length, round_number, prev_len, knocked_marbles, previous_positions
+    
+    previous_positions.append((positions.copy(), skip_length.copy()))
+    
+    positions = remaining_marbles(positions, skip_length, no_of_positions, no_of_marbles)
+    new_list = [pos for pos in positions if pos != 0]
+    current_len = len(new_list)
+    
+    update_board()
+    update_table()
+    round_number += 1
+    knocked_message = f"Knocked marbles: {', '.join(map(str, knocked_marbles))}" if knocked_marbles else "No marbles knocked this round."
+    output_label.config(text=f"Round {round_number}\n{knocked_message}")
+
+    for knocked_index in knocked_marbles:
+        dest_x, dest_y = get_marble_position(knocked_index)
+        animate_skip_decrease(dest_x+40, dest_y+40, knocked_index)
+        
+    if current_len != prev_len:
+        prev_len = current_len
+    else:
+        output_label.config(text=f"Round {round_number}\nGame Over: {current_len} marbles remaining.")
+        move_button.config(state=tk.DISABLED)
+        end_game()
+
+    if current_len == 0:
+        end_game()
+
+def update_board(initial=False):
+    board_canvas.delete("all")
+    width, height = 1200, 800
+    radius = 300
+    center_x, center_y = width // 2.5, height // 2.5
+    board_canvas.create_image(center_x, center_y, image=board_bg_image, anchor=tk.CENTER)
+
+    angle_step = 2 * math.pi / no_of_marbles
+    for i in range(no_of_marbles):
+        angle = i * angle_step
+        x = center_x + radius * math.cos(angle)
+        y = center_y + radius * math.sin(angle)
+        if i+1 in positions:
+            if initial:
+                animate_marble(x, y, i+1)
+            else:
+                board_canvas.create_image(x, y, image=resized_marble_image, anchor=tk.CENTER)
+        elif i+1 in knocked_marbles:
+            animate_knocked_marble(x, y)
+        else:
+            board_canvas.create_oval(x-40, y-40, x+40, y+40, fill="white", outline="black", width=2)
+        board_canvas.create_text(x, y, text=str(i+1), font=("Arial", 16), fill="black")
+
+    remaining_marbles_count = sum(1 for pos in positions if pos != 0)
+    if output_label:
+        output_label.config(text=f"Remaining marbles: {remaining_marbles_count}")
+
+def update_table():
+    for i in range(no_of_positions):
+        item_id = tree.get_children()[i]
+        tree.item(item_id, values=(i+1, positions[i], skip_length[i]))
+
+def get_marble_position(index):
+    
+    if index < len(positions):
+        marble_position = positions[index]
+        angle_step = 2 * math.pi / no_of_marbles
+        radius = 200
+        center_x, center_y = 1200 // 2.5, 800 // 2.5
+        angle = (marble_position - 1) * angle_step
+        x = center_x + radius * math.cos(angle)
+        y = center_y + radius * math.sin(angle)
+        return x, y
+    else:
+        return None, None
+
+def show_menu():
+    
+    menu = tk.Menu(root, tearoff=0)
+    menu.add_command(label="Change Inputs", command=transition_to_input)
+    menu.add_command(label="Instructions", command=show_instructions)
+    menu.add_separator()
+    menu.add_command(label="About", command=show_about)
+    menu.add_separator()
+    menu.add_command(label="Exit", command=root.quit)
+
+
+    menu.post(root.winfo_x() + root.winfo_width() - 10, root.winfo_y() + 10)
+
+def show_about():
+    messagebox.showinfo("About", "This is a marble simulation game.")
+
+def back_move():
+    global positions, skip_length, round_number, prev_len, knocked_marbles, previous_positions
+    round_number=0
+    if len(previous_positions) > 1: 
+        previous_positions.pop()  
+        positions, skip_length = previous_positions[-1]  
+        update_board()  
+        update_table()  
+        round_number -= 1  
+        move_button.config(state=tk.ACTIVE)  
+        output_label.config(text=f"Round {round_number}\nMove reverted.")  
+    else:
+        output_label.config(text="Can not go back further.")
+
+    back_button = tk.Button(simulation_frame, text="Back", font=("Tekton", 20), width=15, command=back_move)
+    back_button.place(relx=0.96, rely=0.8, anchor=tk.E)
+
+def remaining_marbles(positions, skip_length, no_of_positions, no_of_marbles):
+    global knocked_marbles
+    knocked_marbles = []
+    for x in range(no_of_positions):
+        marbles_knocked = []
+        for i in range(positions[x] + 1, positions[x] + skip_length[x] + 1):
+            if i > no_of_marbles:
+                i -= no_of_marbles
+
+            if i in positions:
+                index = positions.index(i)
+                if positions[index] != 0:
+                    knocked_marbles.append(index + 1) 
+                    play_knock_sound()
+                positions[index] = 0
+                skip_length[index] = 0
+                marbles_knocked.append(index)
+
+        positions[x] += skip_length[x]
+        if positions[x] > no_of_marbles:
+            positions[x] -= no_of_marbles
+
+        skip_length[x] -= len(marbles_knocked)
+        if skip_length[x] < 0:
+            skip_length[x] = 0
+
+    return positions
+
+previous_positions = []
+
+def animate_marble(dest_x, dest_y, marble_num, step=5):
+    x, y = 0, 0
+    marble_img = board_canvas.create_image(x, y, image=resized_marble_image, anchor=tk.CENTER)
+    dx = (dest_x - x) / step
+    dy = (dest_y - y) / step
+    for i in range(step):
+        x += dx
+        y += dy
+        board_canvas.coords(marble_img, x, y)
+        board_canvas.update()
+        board_canvas.after(100)  
+    
+    board_canvas.coords(marble_img, dest_x, dest_y)
+
+
+def animate_skip_decrease(dest_x, dest_y, knocked_index, step=10):
+    
+    x, y = dest_x + 40, dest_y + 40  
+    skip_text = f"Skip: {skip_length[knocked_index]}"  
+    skip_text_obj = board_canvas.create_text(x, y, text=skip_text, font=("Arial", 12), fill="black", anchor=tk.CENTER)
+    new_skip_length = skip_length[knocked_index] - 1  
+    for _ in range(step):
+        skip_text = f"Skip: {new_skip_length}"  
+        board_canvas.itemconfig(skip_text_obj, text=skip_text, font=("Arial", 14, "bold")) 
+        board_canvas.update()
+        board_canvas.after(100)  
+        board_canvas.delete(skip_text_obj)  
+
+def animate_knocked_marble(dest_x, dest_y, step=10):
+    x, y = dest_x, dest_y
+    marble_img = board_canvas.create_image(x, y, image=resized_marble_image, anchor=tk.CENTER)
+    dx, dy = 10, 10  
+    for i in range(step):
+        x += dx
+        y += dy
+        board_canvas.coords(marble_img, x, y)
+        board_canvas.update()
+        board_canvas.after(50)  
+    board_canvas.delete(marble_img)
+
+def end_game():
+
+    simulation_frame.pack_forget()
+
+    end_game_frame = tk.Frame(root, bg=background_color)
+    end_game_frame.pack(fill="both", expand=True)
+
+    end_game_image = tk.PhotoImage(file="C:\\WISE\\gamiii.png")  
+
+    image_label = tk.Label(end_game_frame, image=end_game_image, bg=background_color)
+    image_label.image = end_game_image 
+    image_label.pack(fill="both", expand=True)
+
+    remaining_marbles_count = sum(1 for pos in positions if pos != 0)
+    remaining_marbles_list = [i + 1 for i, pos in enumerate(positions) if pos != 0]
+    remaining_marbles_text = " ".join(str(i) for i in remaining_marbles_list)
+    remaining_marbles_label = tk.Label(end_game_frame, text=f"Remaining marbles : {remaining_marbles_count}\nMarbles : {remaining_marbles_text}", font=("Helvetica", 24), bg=background_color)
+    remaining_marbles_label.place(relx=0.5, rely=0.9, anchor=tk.CENTER)
+
+    restart_button = tk.Button(end_game_frame, text="Restart", font=("Eras Demi ITC", 30), bg="#DEF4CC", fg="black", command=lambda: restart_game(end_game_frame))
+    restart_button.place(relx=0.9, rely=0.95, anchor=tk.CENTER, width=300, height=90)
+
+
+def restart_game(frame):
+    frame.pack_forget()  
+    global positions, skip_length, no_of_positions, no_of_marbles, prev_len, knocked_marbles, previous_positions, round_number
+    positions = []
+    skip_length = []
+    no_of_positions = 0
+    no_of_marbles = 0
+    prev_len = 0
+    knocked_marbles = []
+    previous_positions = []
+    round_number = 0
+    tree.delete(*tree.get_children()) 
+    output_label.config(text="")  
+    move_button.config(state=tk.ACTIVE) 
+
+    num_marbles_entry.delete(0, tk.END)
+    num_positions_entry.delete(0, tk.END)
+    marble_positions_entry.delete(0, tk.END)
+    skip_length_entry.delete(0, tk.END)
+
+    welcome_frame.pack(fill="both", expand=True)  
+
+root = tk.Tk()
+root.title("Marbles continue after this")
+
+root.attributes('-fullscreen', True)
+
+# Welcome Frame with Background Color and Image
+welcome_frame = tk.Frame(root)
+welcome_frame.place(relwidth=1, relheight=1)
+
+background_color = "#DEF4CC"  # Cyan
+background_canvas = tk.Canvas(welcome_frame, bg=background_color, width=800, height=600)
+background_canvas.pack(fill="both", expand=True)
+
+background_image = tk.PhotoImage(file="C:\\WISE\\20240530_182715_0000.png")  # Replace with your image file path
+background_label = tk.Label(background_canvas, image=background_image)
+background_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
+
+start_button = tk.Button(welcome_frame, text="Start The Game", font=("Eras Demi ITC", 30), bg="#DEF4CC", fg="black", command=show_instructions)
+start_button.place(relx=0.9, rely=0.75, anchor=tk.CENTER, width=300, height=90)
+
+exit_button = tk.Button(welcome_frame, text="Exit", font=("Eras Demi ITC", 30), bg="#DEF4CC", fg="black", command=root.destroy)
+exit_button.place(relx=0.9, rely=0.95, anchor=tk.CENTER, width=300, height=90)
+
+
+# Input Frame
+input_frame = tk.Frame(root, bg="#DEF4CC")
+input_frame.grid_rowconfigure(10, weight=1)
+input_frame.grid_columnconfigure(0, weight=1)
+input_frame.grid_columnconfigure(2, weight=1)
+
+
+num_marbles_label = tk.Label(input_frame, text="\n\n\nEnter the number of marbles:", font=("Tekton", 20), bg=background_color)
+num_marbles_label.grid(row=1, column=1, pady=10)
+num_marbles_entry = tk.Entry(input_frame, font=("Tekton", 16), width=20)
+num_marbles_entry.grid(row=2, column=1, pady=10)
+
+num_positions_label = tk.Label(input_frame, text="Enter the number of positions:", font=("Tekton", 20), bg=background_color)
+num_positions_label.grid(row=3, column=1, pady=10)
+
+num_positions_entry = tk.Entry(input_frame, font=("Tekton", 16), width=20)
+num_positions_entry.grid(row=4, column=1, pady=10)
+
+marble_positions_label = tk.Label(input_frame, text="Enter marble positions (space-separated):", font=("Tekton", 20), bg=background_color)
+marble_positions_label.grid(row=5, column=1, pady=10)
+marble_positions_entry = tk.Entry(input_frame, font=("Tekton", 16), width=40)
+marble_positions_entry.grid(row=6, column=1, pady=10)
+
+skip_length_label = tk.Label(input_frame, text="Enter skip length for each marble (space-separated):", font=("Tekton", 20), bg=background_color)
+skip_length_label.grid(row=7, column=1, pady=10)
+skip_length_entry = tk.Entry(input_frame, font=("Tekton", 16), width=40)
+skip_length_entry.grid(row=8, column=1, pady=10)
+
+start_simulation_button = tk.Button(input_frame, text="Start Simulation", font=("ROG FONTS", 28), bg="#DEF4CC", command=start_simulation)
+start_simulation_button.grid(row=9, column=1, pady=20)
+
+simulation_frame = tk.Frame(root, bg=background_color)
+
+style = ttk.Style()
+style.configure("Treeview.Heading", font=("Arial", 18, "bold"))
+style.configure("Treeview", font=("Arial", 16), rowheight=30)
+
+tree = ttk.Treeview(simulation_frame, columns=("Marble", "Position", "Skip Length"), show="headings", height=10, style="Treeview")
+tree.heading("Marble", text="Marble", anchor=tk.CENTER)
+tree.heading("Position", text="Position", anchor=tk.CENTER)
+tree.heading("Skip Length", text="Skip Length", anchor=tk.CENTER)
+tree.column("Marble", width=150, anchor=tk.CENTER, stretch=tk.NO)
+tree.column("Position", width=150, anchor=tk.CENTER, stretch=tk.NO)
+tree.column("Skip Length", width=150, anchor=tk.CENTER, stretch=tk.NO)
+tree.pack(pady=10, padx=10, side="right")
+
+board_canvas = tk.Canvas(simulation_frame, width=1200, height=800, bg='#DEF4CC')
+board_canvas.pack(side="left", fill="both", expand=True)
+
+board_bg_image = tk.PhotoImage(file="C:\\WISE\\sand 12.png")  
+
+marble_image = Image.open("C:\\WISE\\sand mm.png")  
+resized_marble_image = marble_image.resize((80, 80), Image.LANCZOS)  
+resized_marble_image = ImageTk.PhotoImage(resized_marble_image)
+
+output_label = tk.Label(simulation_frame, text="", bg=background_color, font=("Helvetica", 24))  
+output_label.place(relx=0.35, rely=0.93, anchor=tk.CENTER)
+
+move_button = tk.Button(simulation_frame, text="Move Marbles", font=("Tekton", 20), width=15, command=move_marbles)
+move_button.place(relx=0.96, rely=0.7, anchor=tk.E)
+
+
+root.mainloop()
