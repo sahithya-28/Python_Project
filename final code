@@ -9,7 +9,7 @@ background_music = pygame.mixer.music.load(r"C:\WISE\game music.mp3")
 
 def play_background_music():
     pygame.mixer.music.play(-1)
-
+#test_hashtag
 def stop_background_music():
     pygame.mixer.music.stop()
 
